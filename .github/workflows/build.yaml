@@ -11,7 +11,7 @@ on:
       jacocoEnabled:
         description: 'Enable Jacoco code coverage (set to "false" for release builds)'
         required: true
-        default: 'true'
+        default: 'false'
         type: choice
         options:
         - 'true'
@@ -29,7 +29,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  NAMESPACE: galasa-dev
+  NAMESPACE: jackyhodev
   BRANCH: ${{ github.ref_name }}
     
 jobs:
@@ -69,7 +69,7 @@ jobs:
         if: github.event_name == 'push'
         env:
           GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           ORG_GRADLE_PROJECT_signingKeyId:  ${{ secrets.GPG_KEYID }}
           ORG_GRADLE_PROJECT_signingKey: ${{ secrets.GPG_KEY }}
           ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.GPG_PASSPHRASE }}
@@ -77,6 +77,7 @@ jobs:
           set -o pipefail
           gradle -b galasa-extensions-parent/build.gradle check publish --info \
           --no-daemon --console plain \
+          -Dgpg.skip=true \
           -PsourceMaven=https://development.galasa.dev/${{ env.BRANCH }}/maven-repo/framework \
           -PcentralMaven=https://repo.maven.apache.org/maven2/ \
           -PtargetMaven=${{ github.workspace }}/repo \
@@ -95,6 +96,7 @@ jobs:
           set -o pipefail
           gradle -b galasa-extensions-parent/build.gradle check publish --info \
           --no-daemon --console plain \
+          -Dgpg.skip=true \
           -PsourceMaven=https://development.galasa.dev/${{ env.BRANCH }}/maven-repo/framework \
           -PcentralMaven=https://repo.maven.apache.org/maven2/ \
           -PtargetMaven=${{ github.workspace }}/repo \
@@ -112,8 +114,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: galasa-team
-          password: ${{ secrets.GALASA_TEAM_WRITE_PACKAGES_TOKEN }}
+          username: jackyhodev
+          password: ${{ secrets.GH_TOKEN }}
       
       - name: Extract metadata for Extensions image
         id: metadata
@@ -134,17 +136,17 @@ jobs:
             dockerRepository=ghcr.io
             tag=${{ env.BRANCH }}
 
-      - name: Recycle application in ArgoCD
-        env: 
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-        run: |
-          docker run --env ARGOCD_AUTH_TOKEN=${{ env.ARGOCD_AUTH_TOKEN }} --rm -v ${{ github.workspace }}:/var/workspace ghcr.io/galasa-dev/argocdcli:main app actions run ${{ env.BRANCH }}-maven-repos restart --kind Deployment --resource-name extensions-${{ env.BRANCH }} --server argocd.galasa.dev
+      #- name: Recycle application in ArgoCD
+        #env: 
+          #ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+        #run: |
+          #docker run --env ARGOCD_AUTH_TOKEN=${{ env.ARGOCD_AUTH_TOKEN }} --rm -v ${{ github.workspace }}:/var/workspace ghcr.io/galasa-dev/argocdcli:main app actions run ${{ env.BRANCH }}-maven-repos restart --kind Deployment --resource-name extensions-${{ env.BRANCH }} --server argocd.galasa.dev
 
-      - name: Wait for app health in ArgoCD
-        env: 
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
-        run: |
-          docker run --env ARGOCD_AUTH_TOKEN=${{ env.ARGOCD_AUTH_TOKEN }} --rm -v ${{ github.workspace }}:/var/workspace ghcr.io/galasa-dev/argocdcli:main app wait ${{ env.BRANCH }}-maven-repos --resource apps:Deployment:extensions-${{ env.BRANCH }} --health --server argocd.galasa.dev
+      #- name: Wait for app health in ArgoCD
+        #env: 
+          #ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+        #run: |
+          #docker run --env ARGOCD_AUTH_TOKEN=${{ env.ARGOCD_AUTH_TOKEN }} --rm -v ${{ github.workspace }}:/var/workspace ghcr.io/galasa-dev/argocdcli:main app wait ${{ env.BRANCH }}-maven-repos --resource apps:Deployment:extensions-${{ env.BRANCH }} --health --server argocd.galasa.dev
 
   trigger-managers-workflow:
     name: Trigger Managers workflow
@@ -155,16 +157,16 @@ jobs:
       - name: Trigger Managers workflow dispatch event with GitHub CLI
         if: github.event_name == 'push'
         env:
-          GH_TOKEN: ${{ secrets.GALASA_TEAM_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          gh workflow run build.yaml --repo https://github.com/galasa-dev/managers
+          gh workflow run build.yaml --repo https://github.com/jackyhodev/managers
 
       - name: Trigger Managers workflow dispatch event with GitHub CLI
         if: github.event_name == 'workflow_dispatch'
         env:
-          GH_TOKEN: ${{ secrets.GALASA_TEAM_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          gh workflow run build.yaml --repo https://github.com/galasa-dev/managers --ref ${{ env.BRANCH }} -f jacocoEnabled=${{ inputs.jacocoEnabled }} -f isMainOrRelease=${{ inputs.isMainOrRelease }}
+          gh workflow run build.yaml --repo https://github.com/jackyhodev/managers --ref ${{ env.BRANCH }} -f jacocoEnabled=${{ inputs.jacocoEnabled }} -f isMainOrRelease=${{ inputs.isMainOrRelease }}
 
   report-failure:
     name: Report failure in workflow
